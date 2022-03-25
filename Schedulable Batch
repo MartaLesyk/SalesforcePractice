@@ -1,0 +1,21 @@
+public class RemindContactOwner Implements Schedulable{
+    public void execute(SchedulableContext ctx) {
+        List<Contact> contacts = [SELECT Id, Name, OwnerId, Birthdate
+            FROM Contact
+            WHERE Birthdate = NULL];
+        for(Contact contact: contacts){
+            if(contact.Birthdate.addMonths(213) == Date.today()){
+                sendmail(contact);
+            }
+        }
+    }
+    public void sendmail(Contact contact18){     
+      Messaging.SingleEmailMessage email = new Messaging.SingleEmailMessage();
+        email.setTargetObjectId(contact18.OwnerId);
+        email.setTreatTargetObjectAsRecipient(true);
+        email.setSubject('Contacts Turning 18');
+        email.setPlainTextBody('Here is a list of contacts turning 18 in 3 month\n ' + contact18.Name + ' - ' + contact18.Birthdate);
+        Messaging.sendEmail(New Messaging.SingleEmailMessage[]{email});
+    }
+
+}
