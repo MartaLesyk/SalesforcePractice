@@ -1,21 +1,54 @@
-public class RemindContactOwner Implements Schedulable{
-    public void execute(SchedulableContext ctx) {
-        List<Contact> contacts = [SELECT Id, Name, OwnerId, Birthdate
+global class RemindContactOwner implements Database.Batchable<Contact> {
+    global Iterable<Contact> start(Database.BatchableContext bc) {
+        List<Contact> contacts = [SELECT Id, Name, OwnerId, Owner.Email, Birthdate
             FROM Contact
-            WHERE Birthdate = NULL];
-        for(Contact contact: contacts){
-            if(contact.Birthdate.addMonths(213) == Date.today()){
-                sendmail(contact);
-            }
+            WHERE Birthdate != NULL AND Birthdate = NEXT_90_DAYS];
+        return contacts;
+    }
+    global void execute(Database.BatchableContext bc, List<Contact> listContacts18){
+        Map<Id, List<Contact>> ownersAndHisContacts = new Map<Id, List<Contact>>();
+        Map<Id, List<String>> ownersEmail = new Map<Id, List<String>>();
+        List<Id> owners = new List<Id>();
+        List<Contact> contactsOnlyOneOwner = new List<Contact>(); 
+        for(Contact contact18: listContacts18){
+            if(!owners.contains(contact18.OwnerId)){
+                owners.add(contact18.OwnerId);
+                ownersEmail.put(contact18.OwnerId, new List<String>{contact18.Owner.Email});
+            }            
         }
+        for(Id ids: owners){
+            for(Contact contact18: listContacts18){
+                if(owners.contains(contact18.OwnerId)){
+                    contactsOnlyOneOwner.add(contact18);
+                }
+            }
+            ownersAndHisContacts.put(ids, contactsOnlyOneOwner);            
+            contactsOnlyOneOwner.clear();
+        }
+        List<Messaging.SingleEmailMessage> email = new List<Messaging.SingleEmailMessage>();
+        String emailContacts = ' ';
+        for(Id ids:ownersAndHisContacts.keySet()){
+            Messaging.SingleEmailMessage message = new Messaging.SingleEmailMessage();
+        	message.setToAddresses(ownersEmail.get(ids));
+            message.setSubject('Contacts turning 18');
+            for(Contact contact: ownersAndHisContacts.get(ids)){
+                emailContacts = contact.Name + ' - ' + contact.Birthdate;
+            }
+            message.setPlainTextBody('Here is a list of contacts turning 18 in 3 month\n '+ emailContacts);
+            system.debug(emailContacts);            
+            email.add(message);
+            emailContacts.remove(emailContacts);
+        }
+        Messaging.SendEmailResult[] result = Messaging.sendEmail(email);
     }
-    public void sendmail(Contact contact18){     
-      Messaging.SingleEmailMessage email = new Messaging.SingleEmailMessage();
-        email.setTargetObjectId(contact18.OwnerId);
-        email.setTreatTargetObjectAsRecipient(true);
-        email.setSubject('Contacts Turning 18');
-        email.setPlainTextBody('Here is a list of contacts turning 18 in 3 month\n ' + contact18.Name + ' - ' + contact18.Birthdate);
-        Messaging.sendEmail(New Messaging.SingleEmailMessage[]{email});
+    global void finish(Database.BatchableContext bc){
+        system.debug(bc);
     }
+}
 
+global class RemindContactOwnerSchedulable implements Schedulable{
+	global void execute(SchedulableContext ctx) {
+        RemindContactOwner remindAboutBirthday = new RemindContactOwner();
+        Database.executeBatch(remindAboutBirthday, 1);
+    }
 }
