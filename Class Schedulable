@@ -1,0 +1,6 @@
+global class RemindContactOwnerSchedulable implements Schedulable{
+	global void execute(SchedulableContext ctx) {
+        Schedule18BdayCntctNotification schedule18BdayCntctNotification = new Schedule18BdayCntctNotification();
+        Database.executeBatch(schedule18BdayCntctNotification);
+    }
+}
